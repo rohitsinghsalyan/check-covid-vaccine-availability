@@ -1,4 +1,4 @@
-# Find Covid-19 Vaccine Availibility
+# Find Covid-19 Vaccine Availability
 
 > It is difficult to scan the avaiibilty of covid-19 vaccine at one go in cowin portal
 > and it's even more difficult to do it all day. Thanks to this code, it allows you to run it
@@ -12,6 +12,12 @@
 import requests
 import pandas as pd
 import beepy
+```
+
+### configurations change required
+
+```json
+headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36'}
 ```
 
 ### Run command
