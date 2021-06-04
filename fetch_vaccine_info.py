@@ -1,5 +1,5 @@
 '''
-python3 fetch_vaccine_info.py --date "31-05-2021" --city "bangalore" --token "" --save_csv "y" --dose 2 --age_limit 45
+python3 fetch_vaccine_info.py --date "04-06-2021" --city "jalandhar" --token "" --save_csv "y" --dose 1 --age_limit 18
 
 '''
 import requests
@@ -46,32 +46,35 @@ def get_schedule_df(centers_payload, age_limit):
     '''
     converts the API output to DF and filters as required by the user
     '''
-    vaccine_schedule_df = pd.DataFrame()
-    for i in centers_payload:
-        name = i['name']
-        address = i['address']
-        pincode = i['pincode']
-        lat = i['lat']
-        lon = i['long']
-        fee_type = i['fee_type']
-        sessions = i['sessions']
-        try:
-            vaccine_fees = i['vaccine_fees'][0]['vaccine']+":"+i['vaccine_fees'][0]['fee']
-        except:
-            vaccine_fees = 'free'
-        for j in sessions:
-            date = j['date']
-            available_capacity_dose1 = j['available_capacity_dose1']
-            available_capacity_dose2 = j['available_capacity_dose2']
-            min_age_limit = j['min_age_limit']
-            if min_age_limit != age_limit:
-                continue
-            vaccine = j['vaccine']
-            slots = "|".join(j['slots'])
-            temp = pd.DataFrame({"name":[name],"address":[address],"pincode":[pincode],"lat":[lat],"lon":[lon],\
-                                 "fee_type":[fee_type],"vaccine_fees":[vaccine_fees],"date":[date],"available_capacity_dose1":[available_capacity_dose1],"available_capacity_dose2":[available_capacity_dose2],"min_age_limit":[min_age_limit],\
-                                 "vaccine":[vaccine],"slots":[slots]})
-            vaccine_schedule_df = vaccine_schedule_df.append(temp,ignore_index=True)
+    if len(centers_payload) == 0:
+        vaccine_schedule_df = None
+    else:
+        vaccine_schedule_df = pd.DataFrame()
+        for i in centers_payload:
+            name = i['name']
+            address = i['address']
+            pincode = i['pincode']
+            lat = i['lat']
+            lon = i['long']
+            fee_type = i['fee_type']
+            sessions = i['sessions']
+            try:
+                vaccine_fees = i['vaccine_fees'][0]['vaccine']+":"+i['vaccine_fees'][0]['fee']
+            except:
+                vaccine_fees = 'free'
+            for j in sessions:
+                date = j['date']
+                available_capacity_dose1 = j['available_capacity_dose1']
+                available_capacity_dose2 = j['available_capacity_dose2']
+                min_age_limit = j['min_age_limit']
+                if min_age_limit != age_limit:
+                    continue
+                vaccine = j['vaccine']
+                slots = "|".join(j['slots'])
+                temp = pd.DataFrame({"name":[name],"address":[address],"pincode":[pincode],"lat":[lat],"lon":[lon],\
+                                    "fee_type":[fee_type],"vaccine_fees":[vaccine_fees],"date":[date],"available_capacity_dose1":[available_capacity_dose1],"available_capacity_dose2":[available_capacity_dose2],"min_age_limit":[min_age_limit],\
+                                    "vaccine":[vaccine],"slots":[slots]})
+                vaccine_schedule_df = vaccine_schedule_df.append(temp,ignore_index=True)
     return vaccine_schedule_df
 
 if __name__=="__main__":
@@ -96,9 +99,8 @@ if __name__=="__main__":
     dose = args.dose
     age_limit = args.age_limit
     city_pincodes = pd.read_csv("pincode_list.csv")
-    print("looking for vaccine slots in {} for date {} onwards".format(city, date_req))
     list_of_pincodes = list(set(city_pincodes[city_pincodes["district"].str.contains(city, case=True, regex=True)].pincode))
-    print(len(list_of_pincodes))
+    print("looking for vaccine slots in {} for date {} onwards in {} pincode locations".format(city, date_req, len(list_of_pincodes)))
     if len(list_of_pincodes) == 0:
         print("sorry your region pincodes could not be found, check spelling or try some variation!!")
         sys.exit()
@@ -111,19 +113,26 @@ if __name__=="__main__":
             if len(centers_data) == 0:
                 continue
             pincode_wise_vac_df = get_schedule_df(centers_data, age_limit)
-            all_vaccination_schedule = all_vaccination_schedule.append(pincode_wise_vac_df,ignore_index=True)
-        availablity = sum(all_vaccination_schedule["available_capacity_dose{}".format(dose)])
-        print("Total Dose {} available in {}:".format(dose, city), availablity)
-        pincodes_non_zero_dose = all_vaccination_schedule[all_vaccination_schedule["available_capacity_dose{}".format(dose)]>0]
-        if save_csv == "y":
-            pincodes_non_zero_dose.to_csv("{}_{}_{}_plus_dose-{}.csv".format(date_req, city, age_limit, dose), index=False)
-        if (availablity > 5) & (availablity <= 200):
-            beepy.beep(sound='coin')
-        elif availablity > 200:
-            beepy.beep(sound='success')
+            if pincode_wise_vac_df is not None:
+                all_vaccination_schedule = all_vaccination_schedule.append(pincode_wise_vac_df,ignore_index=True)
+            else:
+                continue
+        if len(all_vaccination_schedule) > 0:
+            availablity = sum(all_vaccination_schedule["available_capacity_dose{}".format(dose)])
+            print("Total Dose {} available in {}:".format(dose, city), availablity)
+            pincodes_non_zero_dose = all_vaccination_schedule[all_vaccination_schedule["available_capacity_dose{}".format(dose)]>0]
+            if save_csv == "y":
+                pincodes_non_zero_dose.to_csv("{}_{}_{}_plus_dose-{}.csv".format(date_req, city, age_limit, dose), index=False)
+            if (availablity > 5) & (availablity <= 200):
+                beepy.beep(sound='coin')
+            elif availablity > 200:
+                beepy.beep(sound='success')
+            else:
+                pass
+            for i in range(len(pincodes_non_zero_dose)):
+                print("{} | {} | {} | {} | {}".format(pincodes_non_zero_dose["pincode"].iloc[i], pincodes_non_zero_dose["fee_type"].iloc[i], pincodes_non_zero_dose["date"].iloc[i], pincodes_non_zero_dose["name"].iloc[i], pincodes_non_zero_dose["vaccine"].iloc[i]))
+            t2 = time.time()
+            print("time taken = ", t2 - t1)
         else:
-            pass
-        for i in range(len(pincodes_non_zero_dose)):
-            print("{} | {} | {} | {} | {}".format(pincodes_non_zero_dose["pincode"].iloc[i], pincodes_non_zero_dose["fee_type"].iloc[i], pincodes_non_zero_dose["date"].iloc[i], pincodes_non_zero_dose["name"].iloc[i], pincodes_non_zero_dose["vaccine"].iloc[i]))
-        t2 = time.time()
-        print("time taken = ", t2 - t1)
+            print("sorry it seems there are no slots available for your selected age and dose criteria, try other combinations!!")
+            break
